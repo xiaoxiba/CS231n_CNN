@@ -407,6 +407,49 @@ def conv_forward_naive(x, w, b, conv_param):
   # Hint: you can use the function np.pad for padding.                        #
   #############################################################################
   pass
+  # get input size parameters
+  N, C, H, W = x.shape
+  F, C, HH, WW = w.shape
+  stride, pad = conv_param['stride'], conv_param['pad']
+  
+  # calculate output size
+  H_out = 1 + (H + 2 * pad - HH) / stride
+  W_out = 1 + (W + 2 * pad - WW) / stride
+  
+  #pad input
+  x_pad = np.pad(x, ((0,0),(0,0),(pad,pad),(pad,pad)), 'constant', constant_values=(0, 0)) #only pad last dimension
+  
+  out = np.zeros((N, F, H_out, W_out))
+  
+  for n_x in range(N):  
+    for f_w in range(F):
+      h_out = 0 #record out h index
+              
+      for h_x in range(x_pad.shape[2])[0:-stride-HH:stride]: # H direction
+        w_out = 0 #record out w index
+        
+        for w_x in range(x_pad.shape[3])[0:-stride-WW:stride]: # W direction
+          #x_local = x_pad[n_x][:][h_x:(h_x + HH)][w_x:(w_x + WW)] #slice the local x match w size 
+          x_local = x_pad[n_x]
+          
+          r = 0.0
+          for c_x in range(C):   
+            #pay attention to the N-array slice method
+            x_local1 = x_local[c_x][h_x:(h_x + HH), w_x:(w_x + WW)] #pay attention to the N-array slice method            
+            #x_local1 = x_pad[n_x,c_x,h_x:(h_x + HH), w_x:(w_x + WW)]
+            #f = w[f_w, c_x, :, :]
+            f = w[f_w][c_x]
+            r += np.sum(x_local1 * f)   #c_x = c_w
+          #out[n_x][f_w][h_out-1][w_out-1] = r          
+          out[n_x,f_w,h_out,w_out] = r          
+          w_out += 1
+          #w_x += stride
+        h_out += 1
+    
+    for k in range(F):
+      #out[n_x, k,:,:] += b[k]  # add bias
+      out[n_x][k] += b[k]  # add bias
+
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
