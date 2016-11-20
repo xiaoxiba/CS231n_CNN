@@ -218,9 +218,13 @@ class FullyConnectedNet(object):
     
     # initial weight for L-1 number of sandwich layers,the input layer (L0) don't need any parameter, and not in layer count
     for i in range(len(hidden_dims)):
-      layer = i+1 # layer number is i+1
-      self.params['W'+str(layer)] = np.random.randn(dims[layer-1],dims[layer]) * weight_scale
-      self.params['b'+str(layer)] = np.zeros(dims[layer])
+      self.params['W'+str(i+1)] = np.random.randn(dims[i],dims[i+1]) * weight_scale
+      self.params['b'+str(i+1)] = np.zeros(dims[i+1])
+      # initial batch norm parameters
+      if self.use_batchnorm and i < len(hidden_dims): 
+        self.params['gamma' + str(i+1)] = np.ones(dims[i+1])        
+        self.params['beta' + str(i+1)] = np.zeros(dims[i+1])          
+    
     
     # inital weigh for last affine layer (don't combine this with other layers since others may have batch norm and relu)
     # but for weight intitial, it can be done together too???????
@@ -246,7 +250,7 @@ class FullyConnectedNet(object):
     # normalization layer. You should pass self.bn_params[0] to the forward pass
     # of the first batch normalization layer, self.bn_params[1] to the forward
     # pass of the second batch normalization layer, etc.
-    self.bn_params = []
+    self.bn_params = []      #notice that bn_params is a list for each layer, each element is a dictionary
     if self.use_batchnorm:
       self.bn_params = [{'mode': 'train'} for i in xrange(self.num_layers - 1)]
     
@@ -266,11 +270,13 @@ class FullyConnectedNet(object):
 
     # Set train/test mode for batchnorm params and dropout param since they
     # behave differently during training and testing.
+    
     if self.dropout_param is not None:
       self.dropout_param['mode'] = mode   
     if self.use_batchnorm:
       for bn_param in self.bn_params:
-        bn_param[mode] = mode
+        bn_param[mode] = mode  #Kevin: I changed the bn_param[mode] to ['mode'] = mode, is it a typo???
+                                #most of the bn_param can use default value???
 
     scores = None
     ############################################################################
@@ -291,13 +297,25 @@ class FullyConnectedNet(object):
     out,cache = {},{}
     out[0] = X
         
-    # foward pass each affine->ReLu layer
+    # foward pass each layer
     for i in range(L-1):
       # get each layer parameter
       W, b = self.params['W' + str(i + 1)], self.params['b' + str(i + 1)] 
-      #sandwich affine->ReLu forward
-      out[i+1], cache[i+1] = affine_relu_forward(out[i], W, b)
       
+      if self.use_batchnorm and self.use_dropout:
+        #affine->batch_norm-->ReLu->dropout forward
+        gamma, beta, bn_param = self.params['gamma'+str(i+1)], self.params['beta'+str(i+1)], self.bn_params[i]
+        dropout_param = self.dropout_param
+        out[i+1], cache[i+1] = affine_bn_relu_dropout_forward(out[i], W, b, gamma, beta, bn_param, dropout_param)  
+      else:
+        if self.use_batchnorm:
+          #affine->batch_norm-->ReLu forward
+          gamma, beta, bn_param = self.params['gamma'+str(i+1)], self.params['beta'+str(i+1)], self.bn_params[i]
+          out[i+1], cache[i+1] = affine_bn_relu_forward(out[i], W, b, gamma, beta, bn_param)           
+        else:
+          #affine->ReLu forward
+          out[i+1], cache[i+1] = affine_relu_forward(out[i], W, b)
+       
     # last layer affine layer forward
     W, b = self.params['W' + str(L)], self.params['b' + str(L)] 
     out[L], cache[L] = affine_forward(out[L-1], W, b)
@@ -315,15 +333,32 @@ class FullyConnectedNet(object):
     grads['b' + str(L)] = db  
     
     # backward pass each affine->ReLu layer
+    
     for i in range(L-1)[-1::-1]:   # use reverse order
       # get each layer parameter
       W, b = self.params['W' + str(i + 1)], self.params['b' + str(i + 1)]   
-      #gradient affine->ReLu    
-      dx, dw, db = affine_relu_backward(dx, cache[i+1])
 
+      if self.use_batchnorm and self.use_dropout: 
+        #affine->batch_norm-->ReLu->dropout backward             
+        dx, dw, db, dgamma, dbeta = affine_bn_relu_dropout_backward(dx, cache[i+1])
+        #record batch norm gradient parameter here
+        grads['gamma' + str(i + 1)] = dgamma
+        grads['beta' + str(i + 1)] = dbeta
+      else:
+        if self.use_batchnorm:
+          #affine->batch_norm-->ReLu backward
+          dx, dw, db, dgamma, dbeta = affine_bn_relu_backward(dx, cache[i+1])
+          #record batch norm gradient parameter here
+          grads['gamma' + str(i + 1)] = dgamma
+          grads['beta' + str(i + 1)] = dbeta                    
+        else:
+          #affine->ReLu backward    
+          dx, dw, db = affine_relu_backward(dx, cache[i+1])        
+      
       #record gradient parameter    
       grads['W' + str(i + 1)] = dw
       grads['b' + str(i + 1)] = db
+
       
     # add L2 regulation for loss and grad
     reg = self.reg

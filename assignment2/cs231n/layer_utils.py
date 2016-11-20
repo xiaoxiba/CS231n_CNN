@@ -29,6 +29,89 @@ def affine_relu_backward(dout, cache):
   dx, dw, db = affine_backward(da, fc_cache)
   return dx, dw, db
 
+def affine_bn_relu_forward(x, w, b, gamma, beta, bn_param):
+  """
+  Convenience layer that perorms an affine->batch norm ->ReLU onvenience layer
+
+  Inputs:
+  - x: Input to the affine layer
+  - w, b: Weights for the affine layer
+  - Kevin: add below parameter for batch norm
+    - gamma: Scale parameter of shape (D,)
+    - beta: Shift paremeter of shape (D,)
+    - bn_param: Dictionary with the following keys:
+      - mode: 'train' or 'test'; required
+      - eps: Constant for numeric stability
+      - momentum: Constant for running mean / variance.
+      - running_mean: Array of shape (D,) giving running mean of features
+      - running_var Array of shape (D,) giving running variance of features
+        
+  Returns a tuple of:
+  - out: Output from the ReLU
+  - cache: Object to give to the backward pass
+  """  
+  a, fc_cache = affine_forward(x, w, b)
+  a, bn_cache = batchnorm_forward(a, gamma, beta, bn_param)
+  out, relu_cache = relu_forward(a)
+  cache = (fc_cache, bn_cache, relu_cache)
+  return out, cache
+
+def affine_bn_relu_backward(dout, cache):
+  """
+  Backward pass for the affine->batch norm ->ReLU  convenience layer
+  """
+  fc_cache, bn_cache, relu_cache = cache
+
+  da = relu_backward(dout, relu_cache)
+  da, dgamma, dbeta = batchnorm_backward(da, bn_cache)
+  dx, dw, db = affine_backward(da, fc_cache)
+  return dx, dw, db, dgamma, dbeta
+
+def affine_bn_relu_dropout_forward(x, w, b, gamma, beta, bn_param, dropout_param):
+  """
+  Convenience layer that perorms an affine->batch norm ->ReLU ->Dropout onvenience layer
+
+  Inputs:
+  - x: Input to the affine layer
+  - w, b: Weights for the affine layer
+  - Kevin: add below parameter for batch norm
+    - gamma: Scale parameter of shape (D,)
+    - beta: Shift paremeter of shape (D,)
+    - bn_param: Dictionary with the following keys:
+      - mode: 'train' or 'test'; required
+      - eps: Constant for numeric stability
+      - momentum: Constant for running mean / variance.
+      - running_mean: Array of shape (D,) giving running mean of features
+      - running_var Array of shape (D,) giving running variance of features
+    - dropout_param: A dictionary with the following keys:
+      - p: Dropout parameter. We drop each neuron output with probability p.
+      - mode: 'test' or 'train'. If the mode is train, then perform dropout;
+        if the mode is test, then just return the input.
+      - seed: Seed for the random number generator. Passing seed makes this
+        function deterministic, which is needed for gradient checking but not in
+        real networks
+      
+  Returns a tuple of:
+  - out: Output from the dropout
+  - cache: Object to give to the backward pass
+  """  
+  a, fc_cache = affine_forward(x, w, b)
+  a, bn_cache = batchnorm_forward(a, gamma, beta, bn_param)
+  a, relu_cache = relu_forward(a)
+  out, dropout_cache = dropout_forward(a, dropout_param) 
+  cache = (fc_cache, bn_cache, relu_cache, dropout_cache)
+  return out, cache
+
+def affine_bn_relu_dropout_backward(dout, cache):
+  """
+  Backward pass for the affine->batch norm ->ReLU ->Dropout convenience layer
+  """
+  fc_cache, bn_cache, relu_cache, dropout_cache = cache  
+  da = dropout_backward(dout, dropout_cache)
+  da = relu_backward(da, relu_cache)
+  da, dgamma, dbeta = batchnorm_backward(da, bn_cache)
+  dx, dw, db = affine_backward(da, fc_cache)
+  return dx, dw, db, dgamma, dbeta
 
 pass
 
@@ -59,6 +142,7 @@ def conv_relu_backward(dout, cache):
   da = relu_backward(dout, relu_cache)
   dx, dw, db = conv_backward_fast(da, conv_cache)
   return dx, dw, db
+
 
 
 def conv_relu_pool_forward(x, w, b, conv_param, pool_param):

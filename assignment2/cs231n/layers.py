@@ -186,12 +186,12 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     # storing your result in the running_mean and running_var variables.        #
     #############################################################################
     pass
-    
-    sample_mean = np.mean(x, axis=0, keepdims=True)       # [1,D]    
-    sample_var = np.var(x, axis=0, keepdims=True)         # [1,D] 
+       
+    sample_mean = np.mean(x, axis=0, keepdims=False)   #[D,]
+    sample_var = np.var(x, axis=0, keepdims=False)     #{D,}
     x_normalized = (x - sample_mean) / np.sqrt(sample_var + eps)    # [N,D]    
     out = gamma * x_normalized + beta    
-    cache = (x_normalized, gamma, beta, sample_mean, sample_var, x, eps)    
+    cache = (x_normalized, gamma, beta, sample_mean, sample_var, x, eps)  
     running_mean = momentum * running_mean + (1 - momentum) * sample_mean    
     running_var = momentum * running_var + (1 - momentum) * sample_var
  
@@ -244,18 +244,19 @@ def batchnorm_backward(dout, cache):
   # results in the dx, dgamma, and dbeta variables.                           #
   #############################################################################
   pass
+  #print cache
   x_normalized, gamma, beta, sample_mean, sample_var, x, eps = cache
   N, D = x.shape
   dx_normalized = dout * gamma       # [N,D]
   x_mu = x - sample_mean             # [N,D]
-  sample_std_inv = 1.0 / np.sqrt(sample_var + eps)    # [1,D]
+  sample_std_inv = 1.0 / np.sqrt(sample_var + eps)    # [D,1]
   dsample_var = -0.5 * np.sum(dx_normalized * x_mu, axis=0, keepdims=True) * sample_std_inv**3
-  dsample_mean = -1.0 * np.sum(dx_normalized * sample_std_inv, axis=0, keepdims=True) - 2.0 * dsample_var * np.mean(x_mu, axis=0, keepdims=True)
+  dsample_mean = -1.0 * np.sum(dx_normalized * sample_std_inv, axis=0, keepdims=False) - 2.0 * dsample_var * np.mean(x_mu, axis=0, keepdims=False)
   dx1 = dx_normalized * sample_std_inv
   dx2 = 2.0/N * dsample_var * x_mu
   dx = dx1 + dx2 + 1.0/N * dsample_mean
-  dgamma = np.sum(dout * x_normalized, axis=0, keepdims=True)
-  dbeta = np.sum(dout, axis=0, keepdims=True)
+  dgamma = np.sum(dout * x_normalized, axis=0, keepdims=False)
+  dbeta = np.sum(dout, axis=0, keepdims=False)
 
   #############################################################################
   #                             END OF YOUR CODE                              #
@@ -326,6 +327,9 @@ def dropout_forward(x, dropout_param):
     # Store the dropout mask in the mask variable.                            #
     ###########################################################################
     pass
+    mask = (np.random.rand( *x.shape ) < p) / p
+    out = mask * x
+    
     ###########################################################################
     #                            END OF YOUR CODE                             #
     ###########################################################################
@@ -334,6 +338,9 @@ def dropout_forward(x, dropout_param):
     # TODO: Implement the test phase forward pass for inverted dropout.       #
     ###########################################################################
     pass
+    mask = np.ones( x.shape )  # need return a mask? or return a None?
+    out = x
+    
     ###########################################################################
     #                            END OF YOUR CODE                             #
     ###########################################################################
@@ -353,7 +360,7 @@ def dropout_backward(dout, cache):
   - cache: (dropout_param, mask) from dropout_forward.
   """
   dropout_param, mask = cache
-  mode = dropout_param['mode']
+  p, mode = dropout_param['p'], dropout_param['mode']
   
   dx = None
   if mode == 'train':
@@ -361,6 +368,8 @@ def dropout_backward(dout, cache):
     # TODO: Implement the training phase backward pass for inverted dropout.  #
     ###########################################################################
     pass
+    dx = dout * mask
+ 
     ###########################################################################
     #                            END OF YOUR CODE                             #
     ###########################################################################
